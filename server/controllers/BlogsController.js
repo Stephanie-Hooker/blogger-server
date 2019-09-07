@@ -1,16 +1,20 @@
 import express from 'express'
-import ValueService from '../services/ValueService';
+
 import { Authorize } from '../middleware/authorize.js'
+import BlogsService from '../services/BlogsService';
+import CommentsService from '../services/CommentsService.js';
 
-let _valueService = new ValueService().repository
+let _blogsService = new BlogsService().repository
+let _commentsService = new CommentsService().repository
 
-export default class ValueController {
+export default class BlogsController {
     constructor() {
         this.router = express.Router()
             //NOTE all routes after the authenticate method will require the user to be logged in to access
-            .use(Authorize.authenticated)
             .get('', this.getAll)
             .get('/:id', this.getById)
+            .get('/:id/comments', this.getComments)
+            .use(Authorize.authenticated)
             .post('', this.create)
             .put('/:id', this.edit)
             .delete('/:id', this.delete)
@@ -18,7 +22,7 @@ export default class ValueController {
 
     async getAll(req, res, next) {
         try {
-            let data = await _valueService.find({})
+            let data = await _blogsService.find({})
             return res.send(data)
         } catch (error) { next(error) }
 
@@ -26,11 +30,18 @@ export default class ValueController {
 
     async getById(req, res, next) {
         try {
-            let data = await _valueService.findById(req.params.id)
+            let data = await _blogsService.findById(req.params.id)
             if (!data) {
                 throw new Error("Invalid Id")
             }
             res.send(data)
+        } catch (error) { next(error) }
+    }
+    async getComments(req, res, next) {
+        try {
+            let data = await _commentsService.find({ blogId: req.params.id }).populate("blogId", "name")
+
+            return res.send(data)
         } catch (error) { next(error) }
     }
 
@@ -38,14 +49,14 @@ export default class ValueController {
         try {
             //NOTE the user id is accessable through req.body.uid, never trust the client to provide you this information
             req.body.authorId = req.session.uid
-            let data = await _valueService.create(req.body)
+            let data = await _blogsService.create(req.body)
             res.send(data)
         } catch (error) { next(error) }
     }
 
     async edit(req, res, next) {
         try {
-            let data = await _valueService.findOneAndUpdate({ _id: req.params.id, }, req.body, { new: true })
+            let data = await _blogsService.findOneAndUpdate({ _id: req.params.id, }, req.body, { new: true })
             if (data) {
                 return res.send(data)
             }
@@ -57,8 +68,8 @@ export default class ValueController {
 
     async delete(req, res, next) {
         try {
-            await _valueService.findOneAndRemove({ _id: req.params.id })
-            res.send("deleted value")
+            await _blogsService.findOneAndRemove({ _id: req.params.id })
+            res.send("deleted blog")
         } catch (error) { next(error) }
 
     }
