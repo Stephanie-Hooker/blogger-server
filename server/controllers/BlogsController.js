@@ -23,6 +23,7 @@ export default class BlogsController {
     async getAll(req, res, next) {
         try {
             let data = await _blogsService.find({})
+                .populate("author")
             return res.send(data)
         } catch (error) { next(error) }
 
@@ -30,7 +31,9 @@ export default class BlogsController {
 
     async getById(req, res, next) {
         try {
-            let data = await _blogsService.findById(req.params.id)
+            let data = await _blogsService
+                .findById(req.params.id)
+                .populate("author")
             if (!data) {
                 throw new Error("Invalid Id")
             }
@@ -39,7 +42,9 @@ export default class BlogsController {
     }
     async getComments(req, res, next) {
         try {
-            let data = await _commentsService.find({ blogId: req.params.id }).populate("blogId", "name")
+            let data = await _commentsService
+                .find({ blogId: req.params.id })
+                .populate("author")
 
             return res.send(data)
         } catch (error) { next(error) }
@@ -48,7 +53,7 @@ export default class BlogsController {
     async create(req, res, next) {
         try {
             //NOTE the user id is accessable through req.body.uid, never trust the client to provide you this information
-            req.body.authorId = req.session.uid
+            req.body.author = req.session.uid
             let data = await _blogsService.create(req.body)
             res.send(data)
         } catch (error) { next(error) }
@@ -56,6 +61,13 @@ export default class BlogsController {
 
     async edit(req, res, next) {
         try {
+            ///TODO: don't allow anyone other than the user to alter this blog
+            let existing = await _blogsService.findById({ _id: req.params.id }).populate('author')
+                .then(blog => {
+                    if (blog.author.id !== req.session.uid) {
+                        return res.status(401).send("not authorized")
+                    }
+                })
             let data = await _blogsService.findOneAndUpdate({ _id: req.params.id, }, req.body, { new: true })
             if (data) {
                 return res.send(data)
@@ -68,6 +80,7 @@ export default class BlogsController {
 
     async delete(req, res, next) {
         try {
+
             await _blogsService.findOneAndRemove({ _id: req.params.id })
             res.send("deleted blog")
         } catch (error) { next(error) }
