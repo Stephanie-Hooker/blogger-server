@@ -20,6 +20,7 @@ export default class CommentsController {
   async getAll(req, res, next) {
     try {
       let data = await _commentsService.find({})
+        .populate("author")
       return res.send(data)
     } catch (error) { next(error) }
 
@@ -27,7 +28,9 @@ export default class CommentsController {
 
   async getById(req, res, next) {
     try {
-      let data = await _commentsService.findById(req.params.id)
+      let data = await _commentsService
+        .findById(req.params.id)
+        .populate("author")
       if (!data) {
         throw new Error("Invalid Id")
       }
@@ -38,7 +41,7 @@ export default class CommentsController {
   async create(req, res, next) {
     try {
       //NOTE the user id is accessable through req.body.uid, never trust the client to provide you this information
-      req.body.authorId = req.session.uid
+      req.body.author = req.session.uid
       let data = await _commentsService.create(req.body)
       res.send(data)
     } catch (error) { next(error) }
@@ -46,6 +49,12 @@ export default class CommentsController {
 
   async edit(req, res, next) {
     try {
+      let existing = await _commentsService.findById({ _id: req.params.id }).populate('author')
+        .then(comment => {
+          if (comment.author.id !== req.session.uid) {
+            return res.status(401).send("not authorized")
+          }
+        })
       let data = await _commentsService.findOneAndUpdate({ _id: req.params.id, }, req.body, { new: true })
       if (data) {
         return res.send(data)
@@ -58,6 +67,7 @@ export default class CommentsController {
 
   async delete(req, res, next) {
     try {
+
       await _commentsService.findOneAndRemove({ _id: req.params.id })
       res.send("deleted comment")
     } catch (error) { next(error) }
